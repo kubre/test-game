@@ -45,4 +45,4 @@ typedef struct Context_Extra {
 // #include "oogabooga/examples/input_example.c"
 
 // This is where you swap in your own project!
-#include "game/index.c"
+#include "game/main.c"
