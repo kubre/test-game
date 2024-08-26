@@ -42,6 +42,16 @@ void Entity_destroy(Entity* entity) {
     memset(entity, 0, sizeof(Entity));
 }
 
+
+bool is_point_on_entity(Vector2 point, Entity* entity) {
+    return (
+        (point.x > entity->pos.x) &&
+        (point.x < entity->pos.x + (f32)entity->image->width) &&
+        (point.y > entity->pos.y) &&
+        (point.y < entity->pos.y + (f32)entity->image->height)
+    );
+}
+
 int entry(int argc, char **argv) {
 
 	window.title = STR("Pune");
@@ -97,6 +107,8 @@ int entry(int argc, char **argv) {
     f32 zoom = 4.f;
 
     Vector2 last_pos = v2(0, 0);
+    Entity* selected_entity = 0;
+
 	while (!window.should_close) {
 		reset_temporary_storage();
         draw_frame.projection = m4_make_orthographic_projection(
@@ -150,19 +162,26 @@ int entry(int argc, char **argv) {
         Vector2 mouse_pos = v2(
             (input_frame.mouse_x - (f32)window.width * .5f) / zoom,
             (input_frame.mouse_y - (f32)window.height * .5f) / zoom);
-        Entity* selected_entity = 0;
         if (is_key_down(MOUSE_BUTTON_LEFT)) {
-            for (int i = 0; i < MAX_ENTITIES_COUNT; ++i) {
-                Entity* entity_i = &world->entities[i];
-                if ((mouse_pos.x > entity_i->pos.x) &&
-                    (mouse_pos.x < entity_i->pos.x + (f32)entity_i->image->width) &&
-                    (mouse_pos.y > entity_i->pos.y) &&
-                    (mouse_pos.y < entity_i->pos.y + (f32)entity_i->image->height)) {
-                        selected_entity = entity_i;
-                        printf("Selcted entity %d", selected_entity->type);
-                        break;
+            if (!selected_entity) {
+                for (int i = 0; i < MAX_ENTITIES_COUNT; ++i) {
+                    Entity* entity_i = &world->entities[i];
+                    if (entity_i->is_valid) {
+                        if (is_point_on_entity(mouse_pos, entity_i)) {
+                                selected_entity = entity_i;
+                                printf("Selected entity: %d\n", selected_entity->type);
+                                break;
+                        }
+                    }
                 }
             }
+
+            if(selected_entity) {
+                selected_entity->pos = v3(mouse_pos.x - (f32)selected_entity->image->width * .5f,
+                                          mouse_pos.y - (f32)selected_entity->image->height * .5f, 0);
+            }
+        } else {
+            selected_entity = 0;
         }
         // Vector3 skillet_pos = v3((last_pos.x - (f32)skillet->width * .5f),
         //                          (last_pos.y - (f32)skillet->height * .5f), 0);
@@ -177,6 +196,11 @@ int entry(int argc, char **argv) {
         // }
 		gfx_update();
 	}
+
+
+    for (int i = 0; i < MAX_ENTITIES_COUNT; ++i) {
+        Entity_destroy(&world->entities[i]);
+    }
 
 	return 0;
 }
