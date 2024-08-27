@@ -14,7 +14,7 @@ typedef struct Entity {
     Gfx_Image* image;
     EntityType type;
     bool       is_valid;
-    Vector3    pos;
+    Vector2    pos;
 } Entity;
 
 
@@ -43,12 +43,12 @@ void Entity_destroy(Entity* entity) {
 }
 
 
-bool is_point_on_entity(Vector2 point, Entity* entity) {
+bool is_v2_in_range(Vector2 point, Vector2 top_left, Vector2 bottom_right) {
     return (
-        (point.x > entity->pos.x) &&
-        (point.x < entity->pos.x + (f32)entity->image->width) &&
-        (point.y > entity->pos.y) &&
-        (point.y < entity->pos.y + (f32)entity->image->height)
+        point.x >= top_left.x &&
+        point.x <= bottom_right.x &&
+        point.y >= top_left.y &&
+        point.y <= bottom_right.y
     );
 }
 
@@ -65,32 +65,32 @@ int entry(int argc, char **argv) {
 
     Entity* skillet = Entity_create();
     skillet->image  = load_image_from_disk(STR("sprites/skillet.png"), get_heap_allocator());
-    skillet->pos    = v3(-80, -40, 0);
+    skillet->pos    = v2(-80.f, -40.f);
     skillet->type   = Entity_SKILLET;
 
     Entity* milk = Entity_create();
     milk->image  = load_image_from_disk(STR("sprites/milk.png"), get_heap_allocator());
-    milk->pos    = v3(-120, 0, 0);
+    milk->pos    = v2(-120.f, 0.f);
     milk->type   = Entity_MILK;
 
     Entity* stove = Entity_create();
     stove->image  = load_image_from_disk(STR("sprites/stove.png"), get_heap_allocator());
-    stove->pos    = v3(0, -20, 0);
+    stove->pos    = v2(0.f, -20.f);
     stove->type   = Entity_STOVE;
 
     Entity* sugar = Entity_create();
     sugar->image  = load_image_from_disk(STR("sprites/sugar.png"), get_heap_allocator());
-    sugar->pos    = v3(-120, -20, 0);
+    sugar->pos    = v2(-120.f, -20.f);
     sugar->type   = Entity_SUGAR;
 
     Entity* tea_powder = Entity_create();
     tea_powder->image  = load_image_from_disk(STR("sprites/tea_powder.png"), get_heap_allocator());
-    tea_powder->pos    = v3(-120, -40, 0)    ;
+    tea_powder->pos    = v2(-120.f, -40.f);
     tea_powder->type   = Entity_TEA_POWDER;
 
     Entity* tea = Entity_create();
     tea->image  = load_image_from_disk(STR("sprites/tea.png"), get_heap_allocator());
-    tea->pos    = v3(20, 50, 0);
+    tea->pos    = v2(20.f, 50.f);
     tea->type   = Entity_TEA;
 
     // Entity* water = Entity_create();
@@ -106,7 +106,6 @@ int entry(int argc, char **argv) {
 
     f32 zoom = 4.f;
 
-    Vector2 last_pos = v2(0, 0);
     Entity* selected_entity = 0;
 
 	while (!window.should_close) {
@@ -122,78 +121,74 @@ int entry(int argc, char **argv) {
             window.should_close = true;
         }
 
+
         {
             Matrix4 xform = m4_scalar(1.0);
-            xform = m4_translate(xform, skillet->pos);
-            draw_image_xform(skillet->image, xform,
-                             v2(skillet->image->width, skillet->image->height), COLOR_WHITE);
+            xform = m4_translate(xform, v3(stove->pos.x, stove->pos.y, 0));
+            draw_image_xform(stove->image, xform, v2(stove->image->width, stove->image->height), COLOR_WHITE);
         }
 
         {
             Matrix4 xform = m4_scalar(1.0);
-            xform = m4_translate(xform, tea_powder->pos);
+            xform = m4_translate(xform, v3(skillet->pos.x, skillet->pos.y, 0));
+            draw_image_xform(skillet->image, xform,
+                             v2(skillet->image->width, skillet->image->height), COLOR_WHITE);
+        }
+
+
+        {
+            Matrix4 xform = m4_scalar(1.0);
+            xform = m4_translate(xform, v3(tea_powder->pos.x, tea_powder->pos.y, 0));
             draw_image_xform(tea_powder->image, xform, v2(tea_powder->image->width, tea_powder->image->height), COLOR_WHITE);
         }
 
         {
             Matrix4 xform = m4_scalar(1.0);
-            xform = m4_translate(xform, sugar->pos);
+            xform = m4_translate(xform, v3(sugar->pos.x, sugar->pos.y, 0));
             draw_image_xform(sugar->image, xform, v2(sugar->image->width, sugar->image->height), COLOR_WHITE);
         }
 
         {
             Matrix4 xform = m4_scalar(1.0);
-            xform = m4_translate(xform, milk->pos);
+            xform = m4_translate(xform, v3(milk->pos.x, milk->pos.y, 0));
             draw_image_xform(milk->image, xform, v2(milk->image->width, milk->image->height), COLOR_WHITE);
         }
 
         {
             Matrix4 xform = m4_scalar(1.0);
-            xform = m4_translate(xform, tea->pos);
+            xform = m4_translate(xform, v3(tea->pos.x, tea->pos.y, 0));
             draw_image_xform(tea->image, xform, v2(tea->image->width, tea->image->height), COLOR_WHITE);
-        }
-
-        {
-            Matrix4 xform = m4_scalar(1.0);
-            xform = m4_translate(xform, stove->pos);
-            draw_image_xform(stove->image, xform, v2(stove->image->width, stove->image->height), COLOR_WHITE);
         }
 
         Vector2 mouse_pos = v2(
             (input_frame.mouse_x - (f32)window.width * .5f) / zoom,
             (input_frame.mouse_y - (f32)window.height * .5f) / zoom);
         if (is_key_down(MOUSE_BUTTON_LEFT)) {
-            if (!selected_entity) {
+            if (!selected_entity) { 
                 for (int i = 0; i < MAX_ENTITIES_COUNT; ++i) {
                     Entity* entity_i = &world->entities[i];
-                    if (entity_i->is_valid) {
-                        if (is_point_on_entity(mouse_pos, entity_i)) {
-                                selected_entity = entity_i;
-                                printf("Selected entity: %d\n", selected_entity->type);
-                                break;
-                        }
+                    if (!entity_i->is_valid) { continue; }
+
+                    if (is_v2_in_range(mouse_pos, entity_i->pos,
+                                       v2(entity_i->pos.x + (f32)entity_i->image->width,
+                                          entity_i->pos.y + (f32)entity_i->image->height))) {
+                            printf("Entity Selected %d\n", entity_i->type);
+                            selected_entity = entity_i;
+                            break;
                     }
                 }
             }
 
+            // not else cond cause we might select entity there wasnt one before
             if(selected_entity) {
-                selected_entity->pos = v3(mouse_pos.x - (f32)selected_entity->image->width * .5f,
-                                          mouse_pos.y - (f32)selected_entity->image->height * .5f, 0);
+                selected_entity->pos = v2(mouse_pos.x - (f32)selected_entity->image->width * .5f,
+                                          mouse_pos.y - (f32)selected_entity->image->height * .5f);
             }
-        } else {
+        }
+
+        if (is_key_just_released(MOUSE_BUTTON_LEFT)) {
             selected_entity = 0;
         }
-        // Vector3 skillet_pos = v3((last_pos.x - (f32)skillet->width * .5f),
-        //                          (last_pos.y - (f32)skillet->height * .5f), 0);
-        // if (is_key_down(MOUSE_BUTTON_LEFT) &&
-        //     (mouse_pos.x > skillet_pos.x) &&
-        //     (mouse_pos.x < skillet_pos.x + (f32)skillet->width) &&
-        //     (mouse_pos.y > skillet_pos.y) &&
-        //     (mouse_pos.y < skillet_pos.y + (f32)skillet->height)) {
-        //     skillet_pos = v3(mouse_pos.x - (f32)skillet->width * .5f,
-        //                      mouse_pos.y - (f32)skillet->height * .5f, 0);
-        //     last_pos = v2(mouse_pos.x, mouse_pos.y);
-        // }
 		gfx_update();
 	}
 
