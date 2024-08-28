@@ -1,3 +1,7 @@
+////
+/// FROM WHEN I THOUGHT GROUPS WERE POG
+///
+
 #define DEBUG_GAME 1
 
 typedef enum EntityType {
@@ -12,11 +16,20 @@ typedef enum EntityType {
     EType_MAX        = 8,
 } EntityType;
 
+typedef enum EntityGroup {
+    EGroup_NIL        = 0,
+    EGroup_STOVE      = 1,
+    EGroup_COOKWARE   = 2,
+    EGroup_LIQUID     = 3,
+    EGroup_PIECES     = 4,
+    EGroup_SPICES     = 5,
+} EntityGroup;
 
 typedef struct Entity {
     Vector2     pos;
     Gfx_Image*  image;
     EntityType  type;
+    EntityGroup group;
     EntityType  items[EType_MAX]; // what items it's holding
     bool        can_hold_items;
     bool        is_valid;
@@ -68,8 +81,10 @@ bool is_v2_in_range(Vector2 point, Vector2 top_left, Vector2 bottom_right) {
 
 bool can_entity_hold_item(Entity* holder, Entity* item) {
     return(
-        (holder->type == EType_STOVE && item->type == EType_SKILLET) ||
-        (holder->type == EType_SKILLET) // cookware can hold anything
+        (holder->type == EType_STOVE && item->type == EGroup_COOKWARE)  ||
+        (holder->group == EGroup_COOKWARE && item->group == EGroup_LIQUID) ||
+        (holder->group == EGroup_COOKWARE && item->group == EGroup_PIECES) ||
+        (holder->group == EGroup_COOKWARE && item->group == EGroup_SPICES)
     );
 }
 
@@ -83,47 +98,47 @@ int entry(int argc, char **argv) {
 
     world = alloc(get_heap_allocator(), sizeof(World));
 
-    Entity* stove           = Entity_create();
-    stove->image            = load_image_from_disk(STR("sprites/stove.png"), get_heap_allocator());
-    stove->pos              = v2(0.f, -20.f);
-    stove->type             = EType_STOVE;
-    stove->is_movable       = false;
-    stove->can_hold_items   = true;
+    Entity* skillet     = Entity_create();
+    skillet->image      = load_image_from_disk(STR("sprites/skillet.png"), get_heap_allocator());
+    skillet->pos        = v2(-80.f, -40.f);
+    skillet->type       = EType_SKILLET;
+    skillet->is_movable = true;
+    skillet->group      = EGroup_COOKWARE;
 
-    Entity* skillet         = Entity_create();
-    skillet->image          = load_image_from_disk(STR("sprites/skillet.png"), get_heap_allocator());
-    skillet->pos            = v2(-80.f, -40.f);
-    skillet->type           = EType_SKILLET;
-    skillet->is_movable     = true;
-    skillet->can_hold_items = true;
+    Entity* milk        = Entity_create();
+    milk->image         = load_image_from_disk(STR("sprites/milk.png"), get_heap_allocator());
+    milk->pos           = v2(-120.f, 0.f);
+    milk->type          = EType_MILK;
+    milk->is_movable    = true;
+    milk->group         = EGroup_LIQUID;
 
-    Entity* milk            = Entity_create();
-    milk->image             = load_image_from_disk(STR("sprites/milk.png"), get_heap_allocator());
-    milk->pos               = v2(-120.f, 0.f);
-    milk->type              = EType_MILK;
-    milk->is_movable        = true;
-    milk->can_hold_items    = false;
+    Entity* stove       = Entity_create();
+    stove->image        = load_image_from_disk(STR("sprites/stove.png"), get_heap_allocator());
+    stove->pos          = v2(0.f, -20.f);
+    stove->type         = EType_STOVE;
+    stove->is_movable   = false;
+    stove->group        = EGroup_SPICES;
 
-    Entity* sugar           = Entity_create();
-    sugar->image            = load_image_from_disk(STR("sprites/sugar.png"), get_heap_allocator());
-    sugar->pos              = v2(-120.f, -20.f);
-    sugar->type             = EType_SUGAR;
-    sugar->is_movable       = true;
-    sugar->can_hold_items   = false;
+    Entity* sugar       = Entity_create();
+    sugar->image        = load_image_from_disk(STR("sprites/sugar.png"), get_heap_allocator());
+    sugar->pos          = v2(-120.f, -20.f);
+    sugar->type         = EType_SUGAR;
+    sugar->is_movable   = true;
+    sugar->group        = EGroup_SPICES;
 
-    Entity* tea_powder          = Entity_create();
-    tea_powder->image           = load_image_from_disk(STR("sprites/tea_powder.png"), get_heap_allocator());
-    tea_powder->pos             = v2(-120.f, -40.f);
-    tea_powder->type            = EType_TEA_POWDER;
-    tea_powder->is_movable      = true;
-    tea_powder->can_hold_items  = false;
+    Entity* tea_powder      = Entity_create();
+    tea_powder->image       = load_image_from_disk(STR("sprites/tea_powder.png"), get_heap_allocator());
+    tea_powder->pos         = v2(-120.f, -40.f);
+    tea_powder->type        = EType_TEA_POWDER;
+    tea_powder->is_movable  = true;
+    tea_powder->group       = EGroup_SPICES;
 
-    Entity* tea         = Entity_create();
-    tea->image          = load_image_from_disk(STR("sprites/tea.png"), get_heap_allocator());
-    tea->pos            = v2(20.f, 50.f);
-    tea->type           = EType_TEA;
-    tea->is_movable     = true;
-    tea->can_hold_items = false;
+    Entity* tea     = Entity_create();
+    tea->image      = load_image_from_disk(STR("sprites/tea.png"), get_heap_allocator());
+    tea->pos        = v2(20.f, 50.f);
+    tea->type       = EType_TEA;
+    tea->is_movable = true;
+    tea->group      = EGroup_SPICES;
 
     assert(skillet, "skillet.png cannot be loaded!");
     assert(milk, "milk.png cannot be loaded!");
@@ -217,18 +232,19 @@ int entry(int argc, char **argv) {
 
         if (is_key_just_released(MOUSE_BUTTON_LEFT) && selected_entity) {
             for (int i = 0; i < MAX_ENTITIES_COUNT; ++i) {
-                Entity* drop_entity = &world->entities[i];
-                if (!drop_entity->is_valid) { continue; }
+                Entity* entity_i = &world->entities[i];
+                if (!entity_i->is_valid) { continue; }
 
-                if (drop_entity != selected_entity &&
-                    is_v2_in_range(mouse_pos, drop_entity->pos,
-                                    v2(drop_entity->pos.x + (f32)drop_entity->image->width,
-                                        drop_entity->pos.y + (f32)drop_entity->image->height))) {
-                        debug(tprint("Drop Entity %d\n", drop_entity->type));
-                        if(can_entity_hold_item(drop_entity, selected_entity)) {
+                if (entity_i != selected_entity &&
+                    is_v2_in_range(mouse_pos, entity_i->pos,
+                                    v2(entity_i->pos.x + (f32)entity_i->image->width,
+                                        entity_i->pos.y + (f32)entity_i->image->height))) {
+                        debug(tprint("Drop Entity %d\n", entity_i->type));
+                        if(can_entity_hold_item(selected_entity, entity_i)) {
+                            // Can hold the entity
                             debug(STR("Can hold the item!"));
                         } else {
-                            debug(STR("Are you dumb? This cannot hold the item!!!"));
+                            debug(STR("Cannot hold the item!"));
                         }
                         break;
                 }
