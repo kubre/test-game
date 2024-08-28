@@ -1,21 +1,38 @@
 typedef enum EntityType {
-    Entity_NIL        = 0,
-    Entity_SKILLET    = 1,
-    Entity_TEA        = 2,
-    Entity_TEA_POWDER = 3,
-    Entity_WATER      = 4,
-    Entity_MILK       = 5,
-    Entity_SUGAR      = 6,
-    Entity_STOVE      = 7,
+    EType_NIL        = 0,
+    EType_SKILLET    = 1,
+    EType_TEA        = 2,
+    EType_TEA_POWDER = 3,
+    EType_WATER      = 4,
+    EType_MILK       = 5,
+    EType_SUGAR      = 6,
+    EType_STOVE      = 7,
+    EType_MAX        = 8,
 } EntityType;
 
+typedef enum EntityGroup {
+    EGroup_NIL        = 0,
+    EGroup_STOVE      = 1,
+    EGroup_COOKWARE   = 2,
+    EGroup_LIQUID     = 3,
+    EGroup_PIECES     = 4,
+    EGroup_SPICES     = 5,
+    EGroup_SUGAR      = 6,
+} EntityGroup;
 
 typedef struct Entity {
-    Gfx_Image* image;
-    EntityType type;
-    bool       is_valid;
-    Vector2    pos;
+    Vector2     pos;
+    Gfx_Image*  image;
+    EntityType  type;
+    EntityGroup group;
+    EntityType  items[EType_MAX]; // what items it's holding
+    bool        can_hold_items;
+    bool        is_valid;
+    bool        is_movable;
 } Entity;
+
+
+/* Pickup Skillet -> Put on Stove -> Add Ingredients -> Tea should popup */
 
 
 #define MAX_ENTITIES_COUNT 1024
@@ -63,38 +80,41 @@ int entry(int argc, char **argv) {
 
     world = alloc(get_heap_allocator(), sizeof(World));
 
-    Entity* skillet = Entity_create();
-    skillet->image  = load_image_from_disk(STR("sprites/skillet.png"), get_heap_allocator());
-    skillet->pos    = v2(-80.f, -40.f);
-    skillet->type   = Entity_SKILLET;
+    Entity* skillet     = Entity_create();
+    skillet->image      = load_image_from_disk(STR("sprites/skillet.png"), get_heap_allocator());
+    skillet->pos        = v2(-80.f, -40.f);
+    skillet->type       = EType_SKILLET;
+    skillet->is_movable = true;
 
-    Entity* milk = Entity_create();
-    milk->image  = load_image_from_disk(STR("sprites/milk.png"), get_heap_allocator());
-    milk->pos    = v2(-120.f, 0.f);
-    milk->type   = Entity_MILK;
+    Entity* milk        = Entity_create();
+    milk->image         = load_image_from_disk(STR("sprites/milk.png"), get_heap_allocator());
+    milk->pos           = v2(-120.f, 0.f);
+    milk->type          = EType_MILK;
+    milk->is_movable    = true;
 
-    Entity* stove = Entity_create();
-    stove->image  = load_image_from_disk(STR("sprites/stove.png"), get_heap_allocator());
-    stove->pos    = v2(0.f, -20.f);
-    stove->type   = Entity_STOVE;
+    Entity* stove       = Entity_create();
+    stove->image        = load_image_from_disk(STR("sprites/stove.png"), get_heap_allocator());
+    stove->pos          = v2(0.f, -20.f);
+    stove->type         = EType_STOVE;
+    stove->is_movable   = false;
 
-    Entity* sugar = Entity_create();
-    sugar->image  = load_image_from_disk(STR("sprites/sugar.png"), get_heap_allocator());
-    sugar->pos    = v2(-120.f, -20.f);
-    sugar->type   = Entity_SUGAR;
+    Entity* sugar       = Entity_create();
+    sugar->image        = load_image_from_disk(STR("sprites/sugar.png"), get_heap_allocator());
+    sugar->pos          = v2(-120.f, -20.f);
+    sugar->type         = EType_SUGAR;
+    sugar->is_movable   = true;
 
-    Entity* tea_powder = Entity_create();
-    tea_powder->image  = load_image_from_disk(STR("sprites/tea_powder.png"), get_heap_allocator());
-    tea_powder->pos    = v2(-120.f, -40.f);
-    tea_powder->type   = Entity_TEA_POWDER;
+    Entity* tea_powder  = Entity_create();
+    tea_powder->image   = load_image_from_disk(STR("sprites/tea_powder.png"), get_heap_allocator());
+    tea_powder->pos     = v2(-120.f, -40.f);
+    tea_powder->type    = EType_TEA_POWDER;
+    tea_powder->is_movable = true;
 
-    Entity* tea = Entity_create();
-    tea->image  = load_image_from_disk(STR("sprites/tea.png"), get_heap_allocator());
-    tea->pos    = v2(20.f, 50.f);
-    tea->type   = Entity_TEA;
-
-    // Entity* water = Entity_create();
-    // water->image  = load_image_from_disk(STR("sprites/water.png"), get_heap_allocator());
+    Entity* tea     = Entity_create();
+    tea->image      = load_image_from_disk(STR("sprites/tea.png"), get_heap_allocator());
+    tea->pos        = v2(20.f, 50.f);
+    tea->type       = EType_TEA;
+    tea->is_movable = true;
 
     assert(skillet, "skillet.png cannot be loaded!");
     assert(milk, "milk.png cannot be loaded!");
@@ -102,7 +122,6 @@ int entry(int argc, char **argv) {
     assert(sugar, "sugar.png cannot be loaded!");
     assert(tea_powder, "tea_powder.png cannot be loaded!");
     assert(tea, "tea.png cannot be loaded!");
-    // assert(water, "water.png cannot be loaded!");
 
     f32 zoom = 4.f;
 
@@ -164,12 +183,13 @@ int entry(int argc, char **argv) {
             (input_frame.mouse_x - (f32)window.width * .5f) / zoom,
             (input_frame.mouse_y - (f32)window.height * .5f) / zoom);
         if (is_key_down(MOUSE_BUTTON_LEFT)) {
-            if (!selected_entity) { 
+            if (!selected_entity) {
                 for (int i = 0; i < MAX_ENTITIES_COUNT; ++i) {
                     Entity* entity_i = &world->entities[i];
                     if (!entity_i->is_valid) { continue; }
 
-                    if (is_v2_in_range(mouse_pos, entity_i->pos,
+                    if (entity_i->is_movable &&
+                        is_v2_in_range(mouse_pos, entity_i->pos,
                                        v2(entity_i->pos.x + (f32)entity_i->image->width,
                                           entity_i->pos.y + (f32)entity_i->image->height))) {
                             printf("Entity Selected %d\n", entity_i->type);
