@@ -1,3 +1,5 @@
+#define DEBUG_GAME 1
+
 typedef enum EntityType {
     EType_NIL        = 0,
     EType_SKILLET    = 1,
@@ -59,6 +61,11 @@ void Entity_destroy(Entity* entity) {
     memset(entity, 0, sizeof(Entity));
 }
 
+void debug(string msg) {
+    #if DEBUG_GAME
+    print(msg);
+    #endif
+}
 
 bool is_v2_in_range(Vector2 point, Vector2 top_left, Vector2 bottom_right) {
     return (
@@ -70,7 +77,6 @@ bool is_v2_in_range(Vector2 point, Vector2 top_left, Vector2 bottom_right) {
 }
 
 int entry(int argc, char **argv) {
-
 	window.title = STR("Pune");
 	window.scaled_width = 1280; // We need to set the scaled size if we want to handle system scaling (DPI)
 	window.scaled_height = 720;
@@ -192,7 +198,7 @@ int entry(int argc, char **argv) {
                         is_v2_in_range(mouse_pos, entity_i->pos,
                                        v2(entity_i->pos.x + (f32)entity_i->image->width,
                                           entity_i->pos.y + (f32)entity_i->image->height))) {
-                            printf("Entity Selected %d\n", entity_i->type);
+                            debug(tprint("Entity Selected %d\n", entity_i->type));
                             selected_entity = entity_i;
                             break;
                     }
@@ -206,7 +212,19 @@ int entry(int argc, char **argv) {
             }
         }
 
-        if (is_key_just_released(MOUSE_BUTTON_LEFT)) {
+        if (is_key_just_released(MOUSE_BUTTON_LEFT) && selected_entity) {
+            for (int i = 0; i < MAX_ENTITIES_COUNT; ++i) {
+                Entity* entity_i = &world->entities[i];
+                if (!entity_i->is_valid) { continue; }
+
+                if (entity_i != selected_entity &&
+                    is_v2_in_range(mouse_pos, entity_i->pos,
+                                    v2(entity_i->pos.x + (f32)entity_i->image->width,
+                                        entity_i->pos.y + (f32)entity_i->image->height))) {
+                        debug(tprint("Drop Entity %d\n", entity_i->type));
+                        break;
+                }
+            }
             selected_entity = 0;
         }
 		gfx_update();
